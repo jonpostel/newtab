@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新标签页</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="ambient">
+    <div class="noise"></div>
+  </div>
+
+  <div class="app">
+    <header class="header">
+      <div class="brand">NEBULA TAB</div>
+      <div class="meta">
+        <h1 class="greeting" id="greeting">Welcome back</h1>
+        <p class="date" id="date">-- / -- / ----</p>
+      </div>
+    </header>
+
+    <section class="search-section">
+      <div class="search-glass">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input type="text" id="searchInput" placeholder="搜索快捷方式..." autocomplete="off">
+      </div>
+    </section>
+
+    <main class="main">
+      <div id="siteGrid" class="bento-grid"></div>
+    </main>
+  </div>
+
+  <div class="fab-bar">
+    <button id="btnImport" class="fab" title="导入数据" data-tooltip="导入数据">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+    </button>
+    <button id="btnBackup" class="fab" title="备份数据" data-tooltip="备份数据">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    </button>
+    <button id="btnAdd" class="fab fab-primary" title="添加快捷方式" data-tooltip="添加快捷方式">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <input type="file" id="fileImport" accept=".json" hidden>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-glass">
+      <div class="modal-header">
+        <h3 id="modalTitle">添加快捷方式</h3>
+        <button type="button" id="btnCancel" class="modal-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form id="siteForm" class="modal-form">
+        <input type="hidden" id="siteId">
+        <div class="field">
+          <label for="siteName">名称</label>
+          <input type="text" id="siteName" placeholder="例如：GitHub" required>
+        </div>
+        <div class="field">
+          <label for="siteUrl">网址</label>
+          <input type="url" id="siteUrl" placeholder="https://github.com" required>
+        </div>
+        <div class="field">
+          <label for="siteIcon">图标 URL（可选）</label>
+          <input type="url" id="siteIcon" placeholder="https://github.com/favicon.ico">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="btnCancel2" class="btn btn-ghost">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/crypto.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/newtab.js"></script>
+</body>
+</html>
