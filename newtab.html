@@ -1,60 +1,65 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>新标签页</title>
+  <meta name="theme-color" content="#141413">
+  <meta name="description" content="A minimal dark new tab page for your shortcuts.">
+  <title>New Tab</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="ambient">
+  <a class="skip-link" href="#siteGrid">Skip to shortcuts</a>
+
+  <div class="ambient" aria-hidden="true">
     <div class="noise"></div>
   </div>
 
   <div class="app">
     <header class="header">
-      <div class="brand">NEBULA TAB</div>
+      <div class="brand" translate="no">NEBULA TAB</div>
       <div class="meta">
-        <h1 class="greeting" id="greeting">Welcome back</h1>
-        <p class="date" id="date">-- / -- / ----</p>
+        <h1 class="greeting" id="greeting">Welcome</h1>
+        <p class="date" id="date">—</p>
       </div>
     </header>
 
-    <section class="search-section">
+    <section class="search-section" aria-label="Search">
       <div class="search-glass">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.3-4.3"></path>
         </svg>
-        <input type="text" id="searchInput" placeholder="搜索快捷方式..." autocomplete="off">
+        <label class="sr-only" for="searchInput">Search shortcuts</label>
+        <input type="text" id="searchInput" name="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
     </section>
 
-    <main class="main">
-      <div id="siteGrid" class="bento-grid"></div>
+    <main class="main" id="main">
+      <div id="siteGrid" class="bento-grid" tabindex="-1"></div>
     </main>
   </div>
 
   <div class="fab-bar">
-    <button id="btnImport" class="fab" title="导入数据" data-tooltip="导入数据">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button id="btnImport" class="fab" type="button" aria-label="Import data" data-tooltip="Import data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="17 8 12 3 7 8"></polyline>
         <line x1="12" y1="3" x2="12" y2="15"></line>
       </svg>
     </button>
-    <button id="btnBackup" class="fab" title="备份数据" data-tooltip="备份数据">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button id="btnBackup" class="fab" type="button" aria-label="Back up data" data-tooltip="Back up data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="7 10 12 15 17 10"></polyline>
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
     </button>
-    <button id="btnAdd" class="fab fab-primary" title="添加快捷方式" data-tooltip="添加快捷方式">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button id="btnAdd" class="fab fab-primary" type="button" aria-label="Add shortcut" data-tooltip="Add shortcut">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
@@ -62,13 +67,13 @@
     <input type="file" id="fileImport" accept=".json" hidden>
   </div>
 
-  <div id="modal" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-glass">
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
       <div class="modal-header">
-        <h3 id="modalTitle">添加快捷方式</h3>
-        <button type="button" id="btnCancel" class="modal-close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <h3 id="modalTitle">Add Shortcut</h3>
+        <button type="button" id="btnCancel" class="modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -77,20 +82,20 @@
       <form id="siteForm" class="modal-form">
         <input type="hidden" id="siteId">
         <div class="field">
-          <label for="siteName">名称</label>
-          <input type="text" id="siteName" placeholder="例如：GitHub" required>
+          <label for="siteName">Name</label>
+          <input type="text" id="siteName" name="name" autocomplete="off" spellcheck="true">
         </div>
         <div class="field">
-          <label for="siteUrl">网址</label>
-          <input type="url" id="siteUrl" placeholder="https://github.com" required>
+          <label for="siteUrl">URL</label>
+          <input type="url" id="siteUrl" name="url" autocomplete="off" spellcheck="false" inputmode="url">
         </div>
         <div class="field">
-          <label for="siteIcon">图标 URL（可选）</label>
-          <input type="url" id="siteIcon" placeholder="https://github.com/favicon.ico">
+          <label for="siteIcon">Icon URL (optional)</label>
+          <input type="url" id="siteIcon" name="icon" autocomplete="off" spellcheck="false" inputmode="url">
         </div>
         <div class="modal-actions">
-          <button type="button" id="btnCancel2" class="btn btn-ghost">取消</button>
-          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="button" id="btnCancel2" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
     </div>

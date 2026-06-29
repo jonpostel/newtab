@@ -1,6 +1,87 @@
 (function () {
   'use strict';
 
+  /* ============================================================ i18n */
+  const I18N = {
+    en: {
+      locale: 'en-US',
+      docTitle: 'New Tab',
+      skip: 'Skip to shortcuts',
+      searchLabel: 'Search shortcuts',
+      searchPlaceholder: 'Search shortcuts…',
+      addTooltip: 'Add shortcut',
+      backupTooltip: 'Back up data',
+      importTooltip: 'Import data',
+      close: 'Close',
+      modalTitleAdd: 'Add Shortcut',
+      modalTitleEdit: 'Edit Shortcut',
+      fieldName: 'Name',
+      fieldUrl: 'URL',
+      fieldIcon: 'Icon URL (optional)',
+      namePh: 'e.g. GitHub',
+      urlPh: 'https://github.com',
+      iconPh: 'https://github.com/favicon.ico',
+      cancel: 'Cancel',
+      save: 'Save',
+      edit: 'Edit',
+      move: 'Move (long-press to drag)',
+      delete: 'Delete',
+      greetingMorning: 'Good morning',
+      greetingAfternoon: 'Good afternoon',
+      greetingEvening: 'Good evening',
+      confirmDelete: 'Delete this shortcut?',
+      confirmImport: (n) => `Import ${n} shortcut(s)? This will overwrite all current data.`,
+      importSuccess: 'Import succeeded',
+      importFailed: 'Import failed: ',
+      badFile: 'Invalid backup file format',
+      emptyState: 'No shortcuts yet. Click + to add one.',
+      noResults: 'No matching shortcuts.'
+    },
+    zh: {
+      locale: 'zh-CN',
+      docTitle: '新标签页',
+      skip: '跳转到快捷方式',
+      searchLabel: '搜索快捷方式',
+      searchPlaceholder: '搜索快捷方式…',
+      addTooltip: '添加快捷方式',
+      backupTooltip: '备份数据',
+      importTooltip: '导入数据',
+      close: '关闭',
+      modalTitleAdd: '添加快捷方式',
+      modalTitleEdit: '编辑快捷方式',
+      fieldName: '名称',
+      fieldUrl: '网址',
+      fieldIcon: '图标 URL（可选）',
+      namePh: '例如：GitHub',
+      urlPh: 'https://github.com',
+      iconPh: 'https://github.com/favicon.ico',
+      cancel: '取消',
+      save: '保存',
+      edit: '编辑',
+      move: '移动（长按拖动）',
+      delete: '删除',
+      greetingMorning: '早上好',
+      greetingAfternoon: '下午好',
+      greetingEvening: '晚上好',
+      confirmDelete: '确定要删除这个网站吗？',
+      confirmImport: (n) => `确认导入 ${n} 个网站？这将覆盖当前所有数据。`,
+      importSuccess: '导入成功',
+      importFailed: '导入失败：',
+      badFile: '备份文件格式不正确',
+      emptyState: '暂无快捷方式。点击 + 添加一个。',
+      noResults: '未找到匹配的快捷方式。'
+    }
+  };
+
+  function detectLang() {
+    const l = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+    return /^zh/i.test(l) ? 'zh' : 'en';
+  }
+
+  const lang = detectLang();
+  const t = I18N[lang];
+
+  /* ============================================================ State */
   let sites = [];
   let dragState = null;
   const LONG_PRESS_DURATION = 300;
@@ -26,6 +107,44 @@
     btnCancel2: document.getElementById('btnCancel2')
   };
 
+  /* ====================================================== i18n apply */
+  function applyI18n() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.title = t.docTitle;
+
+    const skipLink = document.querySelector('.skip-link');
+    if (skipLink) skipLink.textContent = t.skip;
+
+    const searchLabel = document.querySelector('label[for="searchInput"]');
+    if (searchLabel) searchLabel.textContent = t.searchLabel;
+    els.search.placeholder = t.searchPlaceholder;
+    els.search.setAttribute('aria-label', t.searchLabel);
+
+    els.btnAdd.setAttribute('aria-label', t.addTooltip);
+    els.btnAdd.setAttribute('data-tooltip', t.addTooltip);
+    els.btnBackup.setAttribute('aria-label', t.backupTooltip);
+    els.btnBackup.setAttribute('data-tooltip', t.backupTooltip);
+    els.btnImport.setAttribute('aria-label', t.importTooltip);
+    els.btnImport.setAttribute('data-tooltip', t.importTooltip);
+
+    els.btnCancel.setAttribute('aria-label', t.close);
+    if (els.btnCancel2) els.btnCancel2.textContent = t.cancel;
+    const submitBtn = els.form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = t.save;
+
+    setLabel(els.siteName, t.fieldName);
+    setLabel(els.siteUrl, t.fieldUrl);
+    setLabel(els.siteIcon, t.fieldIcon);
+    els.siteName.placeholder = t.namePh;
+    els.siteUrl.placeholder = t.urlPh;
+    els.siteIcon.placeholder = t.iconPh;
+  }
+
+  function setLabel(input, text) {
+    if (input.labels && input.labels[0]) input.labels[0].textContent = text;
+  }
+
+  /* ====================================================== Helpers */
   function normalizeUrl(url) {
     if (!url) return '';
     url = url.trim();
@@ -51,6 +170,13 @@
     }
   }
 
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /* ====================================================== Render */
   function render() {
     const keyword = els.search.value.trim().toLowerCase();
     const filtered = sites.filter(s =>
@@ -60,44 +186,56 @@
 
     els.grid.innerHTML = '';
 
-    filtered.forEach((site, index) => {
-      const card = createSiteCard(site, index);
-      els.grid.appendChild(card);
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = keyword ? t.noResults : t.emptyState;
+      els.grid.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach((site) => {
+      els.grid.appendChild(createSiteCard(site));
     });
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  function createSiteCard(site, index) {
+  function createSiteCard(site) {
     const card = document.createElement('div');
     card.className = 'site-card';
     card.dataset.id = site.id;
+    card.setAttribute('role', 'link');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', `${site.name} — ${getDomain(site.url)}`);
+
     const iconUrl = site.icon || getFavicon(site.url);
     const displayUrl = getDomain(site.url);
     const initial = site.name.charAt(0).toUpperCase();
 
     card.innerHTML = `
       <div class="actions">
-        <button class="icon-btn edit" data-id="${site.id}" title="编辑">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        <button type="button" class="icon-btn edit" data-id="${site.id}" aria-label="${escapeHtml(t.edit)}" title="${escapeHtml(t.edit)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
         </button>
-        <button class="icon-btn move" data-id="${site.id}" title="移动（长按拖动）">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1.5"></circle><circle cx="9" cy="5" r="1.5"></circle><circle cx="9" cy="19" r="1.5"></circle><circle cx="15" cy="12" r="1.5"></circle><circle cx="15" cy="5" r="1.5"></circle><circle cx="15" cy="19" r="1.5"></circle></svg>
+        <button type="button" class="icon-btn move" data-id="${site.id}" aria-label="${escapeHtml(t.move)}" title="${escapeHtml(t.move)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="12" r="1.5"></circle><circle cx="9" cy="5" r="1.5"></circle><circle cx="9" cy="19" r="1.5"></circle><circle cx="15" cy="12" r="1.5"></circle><circle cx="15" cy="5" r="1.5"></circle><circle cx="15" cy="19" r="1.5"></circle></svg>
         </button>
-        <button class="icon-btn delete" data-id="${site.id}" title="删除">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        <button type="button" class="icon-btn delete" data-id="${site.id}" aria-label="${escapeHtml(t.delete)}" title="${escapeHtml(t.delete)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="icon">
-        ${iconUrl ? `<img src="${iconUrl}" alt="" onerror="this.style.display='none';this.parentElement.textContent='${initial}'">` : initial}
+        ${iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" width="44" height="44" loading="lazy">` : escapeHtml(initial)}
       </div>
       <div class="name">${escapeHtml(site.name)}</div>
       <div class="url">${escapeHtml(displayUrl)}</div>
     `;
+
+    // Graceful favicon fallback to initial letter
+    const iconEl = card.querySelector('.icon');
+    const img = iconEl.querySelector('img');
+    if (img) {
+      img.addEventListener('error', () => { iconEl.textContent = initial; });
+    }
 
     card.querySelector('.edit').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -111,13 +249,19 @@
       deleteSite(site.id);
     });
 
-    card.addEventListener('click', () => {
-      window.location.href = site.url;
+    const navigate = () => { window.location.href = site.url; };
+    card.addEventListener('click', navigate);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        navigate();
+      }
     });
 
     return card;
   }
 
+  /* ====================================================== Drag & drop */
   function startDrag(card, site, clientX, clientY) {
     const rect = card.getBoundingClientRect();
     const clone = card.cloneNode(true);
@@ -230,14 +374,29 @@
     return sites.find(s => s.id === id);
   }
 
+  /* ====================================================== Lifecycle */
   async function load() {
     updateHeader();
     sites = await Storage.loadSites();
     render();
   }
 
+  function updateHeader() {
+    const hour = new Date().getHours();
+    let text = t.greetingEvening;
+    if (hour >= 5 && hour < 12) text = t.greetingMorning;
+    else if (hour >= 12 && hour < 18) text = t.greetingAfternoon;
+    els.greeting.textContent = text;
+
+    const fmt = new Intl.DateTimeFormat(t.locale, {
+      year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+    });
+    els.date.textContent = fmt.format(new Date());
+  }
+
+  /* ====================================================== Modal */
   function openAdd() {
-    els.modalTitle.textContent = '添加网站';
+    els.modalTitle.textContent = t.modalTitleAdd;
     els.form.reset();
     els.siteId.value = '';
     els.modal.classList.remove('hidden');
@@ -245,7 +404,7 @@
   }
 
   function openEdit(site) {
-    els.modalTitle.textContent = '编辑网站';
+    els.modalTitle.textContent = t.modalTitleEdit;
     els.siteId.value = site.id;
     els.siteName.value = site.name;
     els.siteUrl.value = site.url;
@@ -283,12 +442,13 @@
   }
 
   async function deleteSite(id) {
-    if (!confirm('确定要删除这个网站吗？')) return;
+    if (!confirm(t.confirmDelete)) return;
     sites = sites.filter(s => s.id !== id);
     await Storage.saveSites(sites);
     render();
   }
 
+  /* ====================================================== Backup / import */
   async function backupData() {
     const payload = {
       version: 1,
@@ -310,9 +470,9 @@
       try {
         const payload = JSON.parse(e.target.result);
         if (!payload || !Array.isArray(payload.sites)) {
-          throw new Error('备份文件格式不正确');
+          throw new Error(t.badFile);
         }
-        if (!confirm(`确认导入 ${payload.sites.length} 个网站？这将覆盖当前所有数据。`)) {
+        if (!confirm(t.confirmImport(payload.sites.length))) {
           return;
         }
         sites = payload.sites.map(s => ({
@@ -323,25 +483,15 @@
         })).filter(s => s.name && s.url);
         await Storage.saveSites(sites);
         render();
-        alert('导入成功');
+        alert(t.importSuccess);
       } catch (err) {
-        alert('导入失败：' + err.message);
+        alert(t.importFailed + err.message);
       }
     };
     reader.readAsText(file);
   }
 
-  function updateHeader() {
-    const hour = new Date().getHours();
-    let text = '晚上好';
-    if (hour >= 5 && hour < 12) text = '早上好';
-    else if (hour >= 12 && hour < 18) text = '下午好';
-    els.greeting.textContent = text;
-    els.date.textContent = new Date().toLocaleDateString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
-    });
-  }
-
+  /* ====================================================== Events */
   function bindEvents() {
     els.btnAdd.addEventListener('click', openAdd);
     els.btnCancel.addEventListener('click', closeModal);
@@ -369,7 +519,14 @@
       els.fileImport.value = '';
     });
     els.modal.addEventListener('click', (e) => {
-      if (e.target === els.modal || e.target.classList.contains('modal-backdrop')) closeModal();
+      if (e.target === els.modal || e.target.hasAttribute('data-close')) closeModal();
+    });
+
+    // Close modal on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !els.modal.classList.contains('hidden')) {
+        closeModal();
+      }
     });
 
     els.grid.addEventListener('pointerdown', (e) => {
@@ -447,6 +604,8 @@
     });
   }
 
+  /* ====================================================== Boot */
+  applyI18n();
   bindEvents();
   load();
 })();
