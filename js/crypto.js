@@ -29,26 +29,35 @@
     return bytes;
   }
 
+  let cachedKeyPromise = null;
+
   async function deriveKey() {
-    const keyMaterial = await root.crypto.subtle.importKey(
-      'raw',
-      stringToBytes(PASSPHRASE),
-      { name: 'PBKDF2' },
-      false,
-      ['deriveKey']
-    );
-    return root.crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: stringToBytes('DarkNewTab_Salt'),
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    );
+    // Key derivation (PBKDF2 100k iterations) is expensive.
+    // Passphrase & salt are constants, so cache the derived key promise.
+    if (!cachedKeyPromise) {
+      cachedKeyPromise = (async () => {
+        const keyMaterial = await root.crypto.subtle.importKey(
+          'raw',
+          stringToBytes(PASSPHRASE),
+          { name: 'PBKDF2' },
+          false,
+          ['deriveKey']
+        );
+        return root.crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: stringToBytes('DarkNewTab_Salt'),
+            iterations: 100000,
+            hash: 'SHA-256'
+          },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      })();
+    }
+    return cachedKeyPromise;
   }
 
   async function encrypt(plaintext) {

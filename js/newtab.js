@@ -80,6 +80,9 @@
 
   const lang = detectLang();
   const t = I18N[lang];
+  const dateFormatter = new Intl.DateTimeFormat(t.locale, {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+  });
 
   /* ============================================================ State */
   let sites = [];
@@ -179,36 +182,54 @@
   /* ====================================================== Render */
   function render() {
     const keyword = els.search.value.trim().toLowerCase();
-    const filtered = sites.filter(s =>
-      s.name.toLowerCase().includes(keyword) ||
-      getDomain(s.url).toLowerCase().includes(keyword)
-    );
 
     els.grid.innerHTML = '';
 
-    if (filtered.length === 0) {
+    if (sites.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.textContent = keyword ? t.noResults : t.emptyState;
+      empty.textContent = t.emptyState;
       els.grid.appendChild(empty);
       return;
     }
 
-    filtered.forEach((site) => {
-      els.grid.appendChild(createSiteCard(site));
+    // Precompute display data once per render to avoid repeated URL parsing.
+    const view = sites.map(s => {
+      const domain = getDomain(s.url);
+      return {
+        site: s,
+        domain,
+        nameLower: s.name.toLowerCase(),
+        domainLower: domain.toLowerCase()
+      };
     });
+
+    const filtered = keyword
+      ? view.filter(v => v.nameLower.includes(keyword) || v.domainLower.includes(keyword))
+      : view;
+
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = t.noResults;
+      els.grid.appendChild(empty);
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    filtered.forEach(v => frag.appendChild(createSiteCard(v.site, v.domain)));
+    els.grid.appendChild(frag);
   }
 
-  function createSiteCard(site) {
+  function createSiteCard(site, domain) {
     const card = document.createElement('div');
     card.className = 'site-card';
     card.dataset.id = site.id;
     card.setAttribute('role', 'link');
     card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', `${site.name} — ${getDomain(site.url)}`);
+    card.setAttribute('aria-label', `${site.name} — ${domain}`);
 
     const iconUrl = site.icon || getFavicon(site.url);
-    const displayUrl = getDomain(site.url);
     const initial = site.name.charAt(0).toUpperCase();
 
     card.innerHTML = `
@@ -227,7 +248,7 @@
         ${iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" width="44" height="44" loading="lazy">` : escapeHtml(initial)}
       </div>
       <div class="name">${escapeHtml(site.name)}</div>
-      <div class="url">${escapeHtml(displayUrl)}</div>
+      <div class="url">${escapeHtml(domain)}</div>
     `;
 
     // Graceful favicon fallback to initial letter
@@ -355,8 +376,13 @@
       const newOrderIds = Array.from(els.grid.children)
         .filter(c => c.classList.contains('site-card'))
         .map(c => c.dataset.id);
-      sites.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-      await Storage.saveSites(sites);
+      const oldOrderIds = sites.map(s => s.id);
+      const changed = newOrderIds.length !== oldOrderIds.length ||
+        newOrderIds.some((id, i) => id !== oldOrderIds[i]);
+      if (changed) {
+        sites.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+        await Storage.saveSites(sites);
+      }
     }
 
     dragState = null;
@@ -388,10 +414,7 @@
     else if (hour >= 12 && hour < 18) text = t.greetingAfternoon;
     els.greeting.textContent = text;
 
-    const fmt = new Intl.DateTimeFormat(t.locale, {
-      year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
-    });
-    els.date.textContent = fmt.format(new Date());
+    els.date.textContent = dateFormatter.format(new Date());
   }
 
   /* ====================================================== Modal */
@@ -492,12 +515,20 @@
   }
 
   /* ====================================================== Events */
+  let searchTimer = null;
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 120);
+  }
+
+  let dragRafId = null;
+
   function bindEvents() {
     els.btnAdd.addEventListener('click', openAdd);
     els.btnCancel.addEventListener('click', closeModal);
     if (els.btnCancel2) els.btnCancel2.addEventListener('click', closeModal);
     els.form.addEventListener('submit', saveSite);
-    els.search.addEventListener('input', render);
+    els.search.addEventListener('input', onSearchInput);
 
     els.siteUrl.addEventListener('input', () => {
       if (els.siteIcon.value.trim()) return;
@@ -566,6 +597,7 @@
       const dy = e.clientY - dragState.startY;
       const distance = Math.hypot(dx, dy);
 
+      // Cancellation logic runs immediately (pre-drag threshold check).
       if (!dragState.dragging && distance > MOVE_THRESHOLD) {
         dragState.hasMoved = true;
         cancelPendingDrag();
@@ -574,14 +606,30 @@
 
       if (dragState.dragging) {
         e.preventDefault();
-        updateClonePosition(e.clientX, e.clientY);
-        const insertIndex = getInsertIndex(e.clientX, e.clientY);
-        movePlaceholder(insertIndex);
+        // Store latest pointer position; coalesce DOM work into one rAF.
+        dragState.lastX = e.clientX;
+        dragState.lastY = e.clientY;
+        if (dragRafId) return;
+        dragRafId = requestAnimationFrame(() => {
+          dragRafId = null;
+          if (!dragState || !dragState.dragging) return;
+          const cx = dragState.lastX;
+          const cy = dragState.lastY;
+          updateClonePosition(cx, cy);
+          const insertIndex = getInsertIndex(cx, cy);
+          movePlaceholder(insertIndex);
+        });
       }
     });
 
     els.grid.addEventListener('pointerup', async (e) => {
       if (!dragState || dragState.pointerId !== e.pointerId) return;
+
+      // Flush any pending drag frame before finalizing.
+      if (dragRafId) {
+        cancelAnimationFrame(dragRafId);
+        dragRafId = null;
+      }
 
       if (dragState.dragging) {
         e.preventDefault();
@@ -595,6 +643,10 @@
 
     els.grid.addEventListener('pointercancel', async (e) => {
       if (!dragState || dragState.pointerId !== e.pointerId) return;
+      if (dragRafId) {
+        cancelAnimationFrame(dragRafId);
+        dragRafId = null;
+      }
       if (dragState.dragging) {
         await endDrag();
       } else {
