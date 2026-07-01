@@ -1,8 +1,24 @@
 (function (root) {
   'use strict';
 
-  const PASSPHRASE = 'DarkNewTab_SecretKey_2024';
+  /* ============================================================
+   * Non-extractable key encryption
+   *
+   * The AES-256-GCM key is generated with extractable=false, so its raw
+   * bytes can NEVER be read by JavaScript (crypto.subtle.exportKey throws).
+   * It is stored as a CryptoKey object in IndexedDB. Even if malware reads
+   * the IndexedDB database files from disk, it cannot extract usable key
+   * material.
+   * ============================================================ */
 
+  const DB_NAME = 'dark_new_tab_crypto';
+  const STORE_NAME = 'keys';
+  const KEY_ID = 'mainKey';
+
+  let cachedKey = null;
+  let initPromise = null;
+
+  /* ------------------------------------------------------------- Helpers */
   function stringToBytes(str) {
     return new TextEncoder().encode(str);
   }
@@ -29,45 +45,68 @@
     return bytes;
   }
 
-  let cachedKeyPromise = null;
+  /* --------------------------------------------------------- IndexedDB */
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = root.indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(STORE_NAME);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
 
-  async function deriveKey() {
-    // Key derivation (PBKDF2 100k iterations) is expensive.
-    // Passphrase & salt are constants, so cache the derived key promise.
-    if (!cachedKeyPromise) {
-      cachedKeyPromise = (async () => {
-        const keyMaterial = await root.crypto.subtle.importKey(
-          'raw',
-          stringToBytes(PASSPHRASE),
-          { name: 'PBKDF2' },
-          false,
-          ['deriveKey']
-        );
-        return root.crypto.subtle.deriveKey(
-          {
-            name: 'PBKDF2',
-            salt: stringToBytes('DarkNewTab_Salt'),
-            iterations: 100000,
-            hash: 'SHA-256'
-          },
-          keyMaterial,
+  async function idbPut(key) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(key, KEY_ID);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbGet() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get(KEY_ID);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* ----------------------------------------------------------- Init (once) */
+  async function init() {
+    if (initPromise) return initPromise;
+    initPromise = (async () => {
+      let key = await idbGet();
+      if (!key) {
+        // First use: generate a fresh non-extractable AES-256-GCM key.
+        // extractable=false => exportKey() will throw; raw bytes never
+        // leave the browser's crypto subsystem.
+        key = await root.crypto.subtle.generateKey(
           { name: 'AES-GCM', length: 256 },
           false,
           ['encrypt', 'decrypt']
         );
-      })();
-    }
-    return cachedKeyPromise;
+        await idbPut(key);
+      }
+      cachedKey = key;
+    })();
+    return initPromise;
   }
 
+  /* --------------------------------------------------------------- Encrypt */
   async function encrypt(plaintext) {
     try {
-      const key = await deriveKey();
+      await init();
       const iv = root.crypto.getRandomValues(new Uint8Array(12));
       const encoded = stringToBytes(JSON.stringify(plaintext));
       const ciphertext = await root.crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
-        key,
+        cachedKey,
         encoded
       );
       const combined = new Uint8Array(iv.length + ciphertext.byteLength);
@@ -80,15 +119,16 @@
     }
   }
 
+  /* --------------------------------------------------------------- Decrypt */
   async function decrypt(cipherBase64) {
     try {
-      const key = await deriveKey();
+      await init();
       const combined = base64ToBytes(cipherBase64);
       const iv = combined.slice(0, 12);
       const ciphertext = combined.slice(12);
       const decrypted = await root.crypto.subtle.decrypt(
         { name: 'AES-GCM', iv },
-        key,
+        cachedKey,
         ciphertext
       );
       return JSON.parse(bytesToString(new Uint8Array(decrypted)));
@@ -98,5 +138,5 @@
     }
   }
 
-  root.CryptoUtil = { encrypt, decrypt };
+  root.CryptoUtil = { encrypt, decrypt, init };
 })(typeof window !== 'undefined' ? window : self);
