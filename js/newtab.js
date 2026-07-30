@@ -172,13 +172,45 @@
   }
 
   /* ====================================================== Icon cache
-   * Caches icon URL responses in the Cache API so that opening a new tab
-   * does not re-issue a network request for every shortcut icon.
-   * Session-level Map dedupes concurrent requests for the same URL.
-   * Falls back to the raw URL when CORS blocks fetching (browser HTTP
+   * Caches the icon image itself (Blob) in IndexedDB so that after the
+   * first fetch, opening a new tab never re-accesses the icon URL.
+   * A session-level Map dedupes concurrent requests for the same URL.
+   * If CORS blocks fetching, falls back to the raw URL (browser HTTP
    * cache may still help). */
-  const ICON_CACHE_NAME = 'dark-new-tab-icons';
+  const ICON_DB_NAME = 'dark_new_tab_icons';
+  const ICON_STORE = 'icons';
   const iconCache = new Map(); // iconUrl -> Promise<blobUrl|rawUrl|null>
+
+  function openIconDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(ICON_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(ICON_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbGetIcon(url) {
+    const db = await openIconDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(ICON_STORE, 'readonly');
+      const req = tx.objectStore(ICON_STORE).get(url);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbPutIcon(url, blob) {
+    const db = await openIconDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(ICON_STORE, 'readwrite');
+      tx.objectStore(ICON_STORE).put(blob, url);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
 
   function loadIcon(iconUrl) {
     if (!iconUrl) return Promise.resolve(null);
@@ -186,17 +218,17 @@
 
     const promise = (async () => {
       try {
-        const cache = await caches.open(ICON_CACHE_NAME);
-        let response = await cache.match(iconUrl);
-
-        if (!response) {
-          response = await fetch(iconUrl, { mode: 'cors' });
-          if (!response.ok) throw new Error('fetch failed: ' + response.status);
-          // Clone before consuming blob so the response stays cacheable.
-          await cache.put(iconUrl, response.clone());
+        // 1. Try IndexedDB persistent cache (the icon Blob itself).
+        const cachedBlob = await idbGetIcon(iconUrl);
+        if (cachedBlob) {
+          return URL.createObjectURL(cachedBlob);
         }
 
+        // 2. Cache miss — fetch and persist the icon Blob.
+        const response = await fetch(iconUrl, { mode: 'cors' });
+        if (!response.ok) throw new Error('fetch failed: ' + response.status);
         const blob = await response.blob();
+        await idbPutIcon(iconUrl, blob);
         return URL.createObjectURL(blob);
       } catch (e) {
         // CORS or network failure — fall back to direct URL.
