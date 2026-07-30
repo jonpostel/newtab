@@ -572,6 +572,18 @@
     els.form.addEventListener('submit', saveSite);
     els.search.addEventListener('input', onSearchInput);
 
+    els.siteUrl.addEventListener('input', () => {
+      if (els.siteIcon.value.trim()) return;
+      const url = normalizeUrl(els.siteUrl.value);
+      if (!url) return;
+      try {
+        const hostname = new URL(url).hostname;
+        els.siteIcon.value = `https://${hostname}/favicon.ico`;
+      } catch {
+        // ignore invalid URL
+      }
+    });
+
     els.btnBackup.addEventListener('click', backupData);
     els.btnImport.addEventListener('click', () => els.fileImport.click());
     els.fileImport.addEventListener('change', (e) => {
