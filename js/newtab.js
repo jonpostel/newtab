@@ -165,18 +165,48 @@
     }
   }
 
-  function getFavicon(url) {
-    try {
-      return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(new URL(url).hostname) + '&sz=64';
-    } catch {
-      return '';
-    }
-  }
-
   function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /* ====================================================== Icon cache
+   * Caches icon URL responses in the Cache API so that opening a new tab
+   * does not re-issue a network request for every shortcut icon.
+   * Session-level Map dedupes concurrent requests for the same URL.
+   * Falls back to the raw URL when CORS blocks fetching (browser HTTP
+   * cache may still help). */
+  const ICON_CACHE_NAME = 'dark-new-tab-icons';
+  const iconCache = new Map(); // iconUrl -> Promise<blobUrl|rawUrl|null>
+
+  function loadIcon(iconUrl) {
+    if (!iconUrl) return Promise.resolve(null);
+    if (iconCache.has(iconUrl)) return iconCache.get(iconUrl);
+
+    const promise = (async () => {
+      try {
+        const cache = await caches.open(ICON_CACHE_NAME);
+        let response = await cache.match(iconUrl);
+
+        if (!response) {
+          response = await fetch(iconUrl, { mode: 'cors' });
+          if (!response.ok) throw new Error('fetch failed: ' + response.status);
+          // Clone before consuming blob so the response stays cacheable.
+          await cache.put(iconUrl, response.clone());
+        }
+
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+      } catch (e) {
+        // CORS or network failure — fall back to direct URL.
+        // Browser HTTP cache may still serve it; we cannot persist it.
+        return iconUrl;
+      }
+    })();
+
+    iconCache.set(iconUrl, promise);
+    return promise;
   }
 
   /* ====================================================== Render */
@@ -229,8 +259,10 @@
     card.setAttribute('tabindex', '0');
     card.setAttribute('aria-label', `${site.name} — ${domain}`);
 
-    const iconUrl = site.icon || getFavicon(site.url);
-    const initial = site.name.charAt(0).toUpperCase();
+    const iconUrl = site.icon || '';
+    // Array.from correctly handles astral-plane characters (emoji, rare CJK)
+    // that charAt(0) would split into broken surrogate halves.
+    const initial = (Array.from(site.name)[0] || '').toUpperCase();
 
     card.innerHTML = `
       <div class="actions">
@@ -244,18 +276,28 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="icon">
-        ${iconUrl ? `<img src="${escapeHtml(iconUrl)}" alt="" width="44" height="44" loading="lazy">` : escapeHtml(initial)}
-      </div>
+      <div class="icon">${escapeHtml(initial)}</div>
       <div class="name">${escapeHtml(site.name)}</div>
       <div class="url">${escapeHtml(domain)}</div>
     `;
 
-    // Graceful favicon fallback to initial letter
+    // When an icon URL is provided, load it asynchronously from cache (or
+    // fetch+cache). The card shows the initial character as placeholder until
+    // the icon is ready, and falls back to the initial on load error.
     const iconEl = card.querySelector('.icon');
-    const img = iconEl.querySelector('img');
-    if (img) {
-      img.addEventListener('error', () => { iconEl.textContent = initial; });
+    if (iconUrl) {
+      loadIcon(iconUrl).then(src => {
+        // Card may have been removed from DOM by a re-render.
+        if (!card.isConnected || !src) return;
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        img.width = 44;
+        img.height = 44;
+        img.addEventListener('error', () => { iconEl.textContent = initial; });
+        iconEl.innerHTML = '';
+        iconEl.appendChild(img);
+      });
     }
 
     card.querySelector('.edit').addEventListener('click', (e) => {
@@ -529,18 +571,6 @@
     if (els.btnCancel2) els.btnCancel2.addEventListener('click', closeModal);
     els.form.addEventListener('submit', saveSite);
     els.search.addEventListener('input', onSearchInput);
-
-    els.siteUrl.addEventListener('input', () => {
-      if (els.siteIcon.value.trim()) return;
-      const url = normalizeUrl(els.siteUrl.value);
-      if (!url) return;
-      try {
-        const hostname = new URL(url).hostname;
-        els.siteIcon.value = `https://${hostname}/favicon.ico`;
-      } catch {
-        // ignore invalid URL
-      }
-    });
 
     els.btnBackup.addEventListener('click', backupData);
     els.btnImport.addEventListener('click', () => els.fileImport.click());
