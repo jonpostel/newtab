@@ -126,10 +126,11 @@ body {
   z-index: 1;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 28px 32px 140px;
-  min-height: 100vh;
+  padding: 28px 32px 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* --------------------------------------------------------------- Header */
@@ -230,6 +231,27 @@ body {
 /* ---------------------------------------------------- Main & bento grid */
 .main {
   flex: 1;
+  overflow-y: auto;
+  padding-bottom: 140px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.main::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.main::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.main::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .bento-grid {
@@ -684,7 +706,7 @@ body {
 /* ------------------------------------------------------------ Responsive */
 @media (max-width: 768px) {
   .app {
-    padding: 32px 20px 110px;
+    padding: 32px 20px 0;
   }
 
   .header {
@@ -710,6 +732,10 @@ body {
   .site-card {
     min-height: 128px;
     padding: 16px;
+  }
+
+  .main {
+    padding-bottom: 110px;
   }
 
   .fab-bar {
