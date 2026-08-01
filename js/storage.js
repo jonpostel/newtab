@@ -3,17 +3,25 @@
 
   const STORAGE_KEY = 'dark_new_tab_sites';
 
+  // Prefer Firefox's `browser` namespace (Promise-based); fall back to
+  // Chrome's `chrome` namespace. Both expose the same storage.local API.
+  const extApi = (typeof browser !== 'undefined' && browser.storage && browser.storage.local)
+    ? browser
+    : (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local)
+      ? chrome
+      : null;
+
   async function getStored(key) {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      const result = await chrome.storage.local.get(key);
+    if (extApi) {
+      const result = await extApi.storage.local.get(key);
       return result[key];
     }
     return localStorage.getItem(key);
   }
 
   async function setStored(key, value) {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ [key]: value });
+    if (extApi) {
+      await extApi.storage.local.set({ [key]: value });
     } else {
       localStorage.setItem(key, value);
     }
